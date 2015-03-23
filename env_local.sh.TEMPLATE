@@ -1,0 +1,15 @@
+# local MacOS setup
+export DEEPDIVE_HOME=`pwd`/../deepdive
+export APP_HOME=`pwd`
+export MEMORY="8g"
+export PARALLELISM=4
+export DBNAME="geo"
+export PGHOST="localhost"
+export PGPORT="5432"
+export PGUSER="$USER"
+export PGPASSWORD=""
+export GPHOST=$PGHOST
+export GPPORT=$PGPORT
+export GPPATH=""
+export TMP_DIR="/tmp/mmx"
+export APP_CONF="application.conf"
