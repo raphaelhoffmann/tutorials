@@ -21,7 +21,7 @@
 * we model this linking problem with a random variable for each mention;
   range is the entries in our database:
 
-```json
+```
 schema.variables {
     locations.value: Categorical(144346)
   }
@@ -106,7 +106,8 @@ CREATE TABLE locations_features (
 
 ## Factors
 
-* with our factors we capture
+* we would like two kinds of factors
+* first, we want to have a logistic regression classifier that uses the features we have generates above and predicts one of the locations with identical name
 
 ```
     locations_features {
@@ -124,7 +125,10 @@ CREATE TABLE locations_features (
       function: "Equal(locations.value, features.loc_id)"
       weight: "?(features.feature)"
     }
+```
 
+* second, we want to consider the predictions in the neighborhood, for example by modeling the probability of a location given the probability of a previous location in the same sentence
+```
     factor_linear_chain_crf {
       input_query: """
         SELECT l1.id as "locations.l1.id", l2.id as "locations.l2.id",
@@ -135,4 +139,6 @@ CREATE TABLE locations_features (
       weight: "?"
     }
 ```
+* this mulinomial distribution is quite larger, so a better approach may be to model the probability that subsequent cities are in the same country, or not too far away based on latitude and longitude. 
+
 
