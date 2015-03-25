@@ -39,7 +39,7 @@ def generate_nnp_phrases(words, poses):
             yield [i, j]
         i = j + 1
 
-def generate_features(sent_id, words, poses, mention_num, t_from, t_to):
+def generate_features(mention_id, sent_id, words, poses, mention_num, t_from, t_to):
     mention_str = ' '.join(words[t_from:t_to])
     matches = cities_dict.get(mention_str)
     if not matches:
@@ -72,14 +72,14 @@ def generate_features(sent_id, words, poses, mention_num, t_from, t_to):
     
         # 4. TODO: CRF FEATURE is_closest_to_previous_location
         for feature in features:
-            print('\t'.join([str(sent_id), str(mention_num), str(loc.id), feature]))
+            print('\t'.join([mention_id, str(loc.id), feature]))
 
 
 if __name__ == "__main__":
     with fileinput.input() as input_files:
         for line in input_files:
-            sent_id, words_str, poses_str, mention_num, t_from, t_to = line.split('\t')
+            mention_id, sent_id, words_str, poses_str, mention_num, t_from, t_to = line.split('\t')
             words = words_str.split(' ')
             poses = poses_str.split(' ')
             phrases = generate_nnp_phrases(words, poses)
-            generate_features(sent_id, words, poses, mention_num, int(t_from), int(t_to))
+            generate_features(mention_id, sent_id, words, poses, mention_num, int(t_from), int(t_to))

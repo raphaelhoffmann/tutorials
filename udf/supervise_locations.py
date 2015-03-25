@@ -28,7 +28,7 @@ with open(BASE_DIR + "/data/cities1000_with_ids.txt", 'rt') as cities_file:
         li = cities_dict.setdefault(name, [])
         li.append(loc)
 
-def supervise(sent_id, mention_num, mention_str, w_from_str, w_to_str, value):
+def supervise(mention_id, sent_id, mention_num, mention_str, w_from_str, w_to_str, value):
     matches = cities_dict.get(mention_str)
     
     true_str = '\\N'
@@ -45,7 +45,7 @@ def supervise(sent_id, mention_num, mention_str, w_from_str, w_to_str, value):
        if m.country_code == 'US':
            true_str = str(largest.id)
 
-    print('\t'.join(['\\N', sent_id, mention_num, mention_str, w_from_str, w_to_str, true_str]))
+    print('\t'.join(['\\N', mention_id, sent_id, mention_num, mention_str, w_from_str, w_to_str, true_str]))
 
     # map all locations with area or zip code
     # TODO
@@ -53,6 +53,6 @@ def supervise(sent_id, mention_num, mention_str, w_from_str, w_to_str, value):
 if __name__ == "__main__":
     with fileinput.input() as input_files:
         for line in input_files:
-            sent_id, mention_num, mention_str, w_from_str, w_to_str, value = line.split('\t')
-            supervise(sent_id, mention_num, mention_str, w_from_str, w_to_str, value)           
+            mention_id, sent_id, mention_num, mention_str, w_from_str, w_to_str, value = line.split('\t')
+            supervise(mention_id, sent_id, mention_num, mention_str, w_from_str, w_to_str, value)           
 

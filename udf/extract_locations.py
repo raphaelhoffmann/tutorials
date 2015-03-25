@@ -22,7 +22,8 @@ def generate_candidates(sent_id, words, poses, phrases):
         mention_str = ' '.join(words[phrase[0]:phrase[1]])
         if not mention_str in cities_set:
             return
-        print('\t'.join(['\\N', str(sent_id), str(mention_num), mention_str, str(phrase[0]), str(phrase[1]), '\\N']))
+        mention_id = sent_id + '_' + str(phrase[0]) + '_' + str(phrase[1])
+        print('\t'.join(['\\N', mention_id, str(sent_id), str(mention_num), mention_str, str(phrase[0]), str(phrase[1]), '\\N']))
         mention_num += 1
 
 def generate_nnp_phrases(words, poses):
