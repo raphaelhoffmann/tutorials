@@ -21,15 +21,15 @@
 * we model this linking problem with a random variable for each mention;
   range is the entries in our database:
 
-``
+```json
 schema.variables {
     locations.value: Categorical(144346)
   }
-``
+```
 
 * our candidate table has the following schema
 
-``
+```sql
 DROP TABLE IF EXISTS locations CASCADE;
 CREATE TABLE locations (
         id bigint,
@@ -41,7 +41,7 @@ CREATE TABLE locations (
         w_to int,
         value int
 ) DISTRIBUTED BY (mention_id);
-``
+```
 
 * only relevant here is that there is one row for each candidate span in the text
   and that the output variable `value` ranges over the entries in our database
@@ -52,12 +52,13 @@ CREATE TABLE locations (
 * map cities which are both the largest and are located in the US
 * add as additional rows
 
-
+```
      id | mention_id | sent_id | mention_num | mention_str | w_from | w_to | value
     ----+------------+---------+-------------+-------------+--------+------+--------
      11 | 3610_17_18 |    3610 |           0 | Oakland     |     17 |   18 |
      36 | 3610_17_18 |    3610 |           0 | Oakland     |     17 |   18 | 139598
      (2 rows)
+```
 
 ## Adding Features
 
@@ -66,14 +67,14 @@ CREATE TABLE locations (
 * we only want to generate features that are relevant to a given candidate
 * we create a features table with the following schema
 
-``
+```sql
 DROP TABLE IF EXISTS locations_features CASCADE;
 CREATE TABLE locations_features (
         mention_id varchar(100),
         loc_id int,
         feature varchar(100)
 ) DISTRIBUTED BY (mention_id);
-``
+```
 
 * for each country, we add feature `country_COUNTRY` 
 * for each other candidate in same sentence, we add `near_OTHERCANDIDATE`
@@ -81,6 +82,7 @@ CREATE TABLE locations_features (
 
 * For above candidate, we get the following entries in our features table, note that the features here are sensitive to both the mention and the target location.
 
+```
      mention_id | loc_id |     feature
     ------------+--------+------------------
      3610_17_18 | 127028 | country_US
@@ -100,12 +102,13 @@ CREATE TABLE locations_features (
      3610_17_18 | 139598 | is_most_populous
      3610_17_18 | 139598 | country_US
      (16 rows)
-
+```
 
 ## Factors
 
 * with our factors we capture
 
+```
     locations_features {
       input_query = """
         SELECT "locations.id", "locations.value", null as "features.id", "features.loc_id", "features.feature"
@@ -131,5 +134,5 @@ CREATE TABLE locations_features (
       function: "Multinomial(locations.l1.value, locations.l2.value)"
       weight: "?"
     }
-
+```
 
