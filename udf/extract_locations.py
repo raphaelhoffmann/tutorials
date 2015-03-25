@@ -9,10 +9,10 @@ BASE_DIR, throwaway = os.path.split(os.path.realpath(__file__))
 BASE_DIR = os.path.realpath(BASE_DIR + "/..")
 
 cities_set = set() 
-with open(BASE_DIR + "/download/cities1000.txt", 'rt') as cities_file:
+with open(BASE_DIR + "/data/cities1000_with_ids.txt", 'rt') as cities_file:
     for line in cities_file:
         cols = line.split('\t')
-        name = cols[1]
+        name = cols[2]
         cities_set.add(name)
 
 

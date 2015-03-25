@@ -11,19 +11,20 @@ import collections
 BASE_DIR, throwaway = os.path.split(os.path.realpath(__file__))
 BASE_DIR = os.path.realpath(BASE_DIR + "/..")
 
-Loc = collections.namedtuple('Loc', ['id', 'name', 'lat', 'lon', 'country_code', 'population'])
+Loc = collections.namedtuple('Loc', ['id', 'origid', 'name', 'lat', 'lon', 'country_code', 'population'])
 
 cities_dict = dict() 
-with open(BASE_DIR + "/download/cities1000.txt", 'rt') as cities_file:
+with open(BASE_DIR + "/data/cities1000_with_ids.txt", 'rt') as cities_file:
     for line in cities_file:
         cols = line.split('\t')
         id = int(cols[0])
-        name = cols[1]
-        lat = float(cols[4])
-        lon = float(cols[5])
-        country_code = cols[8]
-        population = int(cols[14])
-        loc = Loc(id=id,name=name,lat=lat,lon=lon,country_code=country_code,population=population)
+        origid = int(cols[1])
+        name = cols[2]
+        lat = float(cols[5])
+        lon = float(cols[6])
+        country_code = cols[9]
+        population = int(cols[15])
+        loc = Loc(id=id,origid=origid,name=name,lat=lat,lon=lon,country_code=country_code,population=population)
         li = cities_dict.setdefault(name, [])
         li.append(loc)
 
