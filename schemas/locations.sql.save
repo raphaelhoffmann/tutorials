@@ -7,7 +7,5 @@ CREATE TABLE locations (
 	mention_str varchar(100),
         w_from int,
         w_to int,
-	loc_id int,
-        is_correct boolean,
-        features text[]
+	value int
 ) DISTRIBUTED BY (mention_id);
