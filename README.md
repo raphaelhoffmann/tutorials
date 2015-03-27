@@ -18,19 +18,18 @@
 * our database contains 32 cities with the name "San Francisco". Many of these are smaller
   cities in South America. On average we find 7 cities with the same name, across all
   mentions with matches in our database.
-* we model this linking problem with a random variable for each mention;
-  range is the entries in our database:
+* we model this linking problem with a boolean random variable for each combination of mention and location:
 
 ```
 schema.variables {
-    locations.value: Categorical(144346)
-  }
+    locations.is_correct: Boolean
+}
 ```
 
 * our candidate table has the following schema
 
 ```sql
-DROP TABLE IF EXISTS locations CASCADE;
+ROP TABLE IF EXISTS locations CASCADE;
 CREATE TABLE locations (
         id bigint,
         mention_id varchar(100),
@@ -39,12 +38,15 @@ CREATE TABLE locations (
         mention_str varchar(100),
         w_from int,
         w_to int,
-        value int
+        loc_id int,
+        is_correct boolean,
+        features text[]
 ) DISTRIBUTED BY (mention_id);
 ```
 
-* only relevant here is that there is one row for each candidate span in the text
-  and that the output variable `value` ranges over the entries in our database
+* only relevant here is that there is one row for each combination of candidate span in the text,
+  and location in our location database. 
+* For tractability we generate such a candidate only if we find an exact match of span in the text and name of a location in the the database.
 
 ## Distant Supervision
 
@@ -52,30 +54,9 @@ CREATE TABLE locations (
 * map cities which are both the largest and are located in the US
 * add as additional rows
 
-```
-     id | mention_id | sent_id | mention_num | mention_str | w_from | w_to | value
-    ----+------------+---------+-------------+-------------+--------+------+--------
-     11 | 3610_17_18 |    3610 |           0 | Oakland     |     17 |   18 |
-     36 | 3610_17_18 |    3610 |           0 | Oakland     |     17 |   18 | 139598
-     (2 rows)
-```
-
 ## Adding Features
 
-* need to design features that allow the system to weight matches for a location
-  differently
-* we only want to generate features that are relevant to a given candidate
-* we create a features table with the following schema
-
-```sql
-DROP TABLE IF EXISTS locations_features CASCADE;
-CREATE TABLE locations_features (
-        mention_id varchar(100),
-        loc_id int,
-        feature varchar(100)
-) DISTRIBUTED BY (mention_id);
-```
-
+* need to design features that allow the system to differentially weight location matches for a given mention
 * for each country, we add feature `country_COUNTRY` 
 * for each other candidate in same sentence, we add `near_OTHERCANDIDATE`
 * for each city that has the highest population of cities with the same name, we add `is_most_populous`
@@ -83,62 +64,65 @@ CREATE TABLE locations_features (
 * For above candidate, we get the following entries in our features table, note that the features here are sensitive to both the mention and the target location.
 
 ```
-     mention_id | loc_id |     feature
-    ------------+--------+------------------
-     3610_17_18 | 127028 | country_US
-     3610_17_18 | 127028 | near_Marina
-     3610_17_18 | 128997 | country_US
-     3610_17_18 | 129336 | country_US
-     3610_17_18 | 130705 | country_US
-     3610_17_18 | 131076 | country_US
-     3610_17_18 | 131364 | country_US
-     3610_17_18 | 133212 | country_US
-     3610_17_18 | 133213 | country_US
-     3610_17_18 | 134518 | country_US
-     3610_17_18 | 135549 | country_US
-     3610_17_18 | 135987 | country_US
-     3610_17_18 | 137938 | country_US
-     3610_17_18 | 137939 | country_US
-     3610_17_18 | 139598 | is_most_populous
-     3610_17_18 | 139598 | country_US
-     (16 rows)
+     1 | 1199_34_35_4413621 |    1199 |           0 | Washington       |     34 |   35 |  4413621 |            | {country_US}
+     2 | 1284_9_10_4164138  |    1284 |           0 | Miami            |      9 |   10 |  4164138 |            | {is_most_populous,country_US,near_Maggot_Mile,near_Las_Vegas}
+     3 | 1284_9_10_4164138  |    1284 |           0 | Miami            |      9 |   10 |  4164138 |            | {is_most_populous,country_US,near_Maggot_Mile,near_Las_Vegas}
+     4 | 2119_8_10_5368361  |    2119 |           0 | Los Angeles      |      8 |   10 |  5368361 |            | {is_most_populous,country_US}
+     5 | 2119_8_10_5368361  |    2119 |           0 | Los Angeles      |      8 |   10 |  5368361 | t          | {is_most_populous,country_US}
+     6 | 487_17_18_5126705  |     487 |           0 | Mexico           |     17 |   18 |  5126705 |            | {country_US}
+     7 | 487_17_18_5126705  |     487 |           0 | Mexico           |     17 |   18 |  5126705 | t          | {country_US}
+     8 | 965_17_19_1690011  |     965 |           0 | San Francisco    |     17 |   19 |  1690011 |            | {country_PH}
+     9 | 965_17_19_1690011  |     965 |           0 | San Francisco    |     17 |   19 |  1690011 |            | {country_PH}
+    10 | 277_31_33_3669860  |     277 |           0 | San Francisco    |     31 |   33 |  3669860 |            | {country_CO}
 ```
 
 ## Factors
 
-* we would like two kinds of factors
-* first, we want to have a logistic regression classifier that uses the features we have generates above and predicts one of the locations with identical name
+* we would like three kinds of factors
+* first, we want to have a logistic regression classifier that uses the features we have generates above
 
 ```
-    locations_features {
+    pairs_features {
       input_query = """
-        SELECT "locations.id", "locations.value", null as "features.id", "features.loc_id", "features.feature"
-        FROM (
-          SELECT c.id as "locations.id", c.value as "locations.value", f.loc_id as "features.loc_id", f.feature as "features.feature"
-          FROM
-            locations c,
-            locations_features f
-          WHERE
-            c.mention_id = f.mention_id
-       ) s;
+        SELECT l.id as "locations.id", l.is_correct as "locations.is_correct", unnest(l.features) as "locations.feature"
+        FROM locations l;
            """
-      function: "Equal(locations.value, features.loc_id)"
-      weight: "?(features.feature)"
+      function: "IsTrue(locations.is_correct)"
+      weight: "?(locations.feature)"
     }
 ```
-
-* second, we want to consider the predictions in the neighborhood, for example by modeling the probability of a location given the probability of a previous location in the same sentence
+* second, we want to ensure that we predict only one location for any given mention 
 ```
-    factor_linear_chain_crf {
-      input_query: """
-        SELECT l1.id as "locations.l1.id", l2.id as "locations.l2.id",
-           l1.value as "locations.l1.value", l2.value as "locations.l2.value"
+    one_of_n_features {
+      input_query = """
+        SELECT l1.id as "linking1.id", l1.is_correct as "linking1.is_correct",
+               l2.id as "linking2.id", l2.is_correct as "linking2.is_correct"
         FROM locations l1, locations l2
-        WHERE l1.sent_id = l2.sent_id AND l2.mention_num = l1.mention_num + 1"""
-      function: "Multinomial(locations.l1.value, locations.l2.value)"
-      weight: "?"
+        WHERE l1.sent_id = l2.sent_id
+        AND l1.mention_num = l2.mention_num
+        AND NOT l1.mention_id = l2.mention_id;
+         """
+      function: "And(linking1.is_correct, linking2.is_correct)"
+      weight: -10
     }
 ```
-* this mulinomial distribution is quite larger, so a better approach may be to model the probability that subsequent cities are in the same country, or not too far away based on latitude and longitude. 
 
-
+* third, we want to consider the predictions in the neighborhood, for example prefering consecutive links to locations of the same country
+```
+    consecutive_in_same_country {
+      input_query: """
+        SELECT l1.id as "linking1.id", l1.is_correct as "linking1.is_correct",
+               l2.id as "linking2.id", l2.is_correct as "linking2.is_correct"
+        FROM locations l1, locations l2,
+             cities1000 c1, cities1000 c2
+        WHERE l1.loc_id = c1.geonameid
+        AND l2.loc_id = c2.geonameid
+        AND l1.sent_id = l2.sent_id
+        AND l2.mention_num = l1.mention_num + 1
+        AND c1.country_code = c2.country_code
+        """
+      function: "And(linking1.is_correct, linking2.is_correct)"
+      weight: "5"
+    }
+```
+ * TODO: use longitude/latitude
