@@ -1,8 +1,8 @@
 # Tutorial: Entity Linking for Locations
 
 References to locations are ubiquitous in text, but many such references are ambiguous. For
-example, Wikipedia lists more than 30 locations named 'San Francisco', 10 songs with
-that name, 2 movies, a magazine, and other things as well.
+example, Wikipedia lists [more than 30 locations](https://en.wikipedia.org/wiki/San_Francisco_(disambiguation)) named 'San Francisco', 10 songs with
+that name, 2 movies, a magazine, and several other things as well.
 In this tutorial, we develop a system that detects mentions of geographic locations
 and links these unambiguously to a database of locations.
 
