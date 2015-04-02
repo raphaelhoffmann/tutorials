@@ -45,19 +45,19 @@ to compute word boundaries by running a tokenizer and splitting sentences. Deepd
 step in our deepdive application. We opt for the latter and add the following extractor to `application.conf`:
 
 ```
-   extract_preprocess: {
-       style: json_extractor
-       before: psql -h ${PGHOST} -p ${PGPORT} -d ${DBNAME} -f ${APP_HOME}/schemas/sentences.sql
-       input: """
-               SELECT id,
-                 body
-               FROM articles
-               WHERE NOT BODY IS NULL
-               ORDER BY id ASC
-              """
-       output_relation: sentences
-       udf: ${DEEPDIVE_HOME}/examples/nlp_extractor/run.sh -k id -v body -l 100 -a "tokenize,ssplit"
-   }
+extract_preprocess: {
+  style: json_extractor
+  before: psql -h ${PGHOST} -p ${PGPORT} -d ${DBNAME} -f ${APP_HOME}/schemas/sentences.sql
+  input: """
+         SELECT id,
+           body
+         FROM articles
+         WHERE NOT BODY IS NULL
+         ORDER BY id ASC
+         """
+  output_relation: sentences
+  udf: ${DEEPDIVE_HOME}/examples/nlp_extractor/run.sh -k id -v body -l 100 -a "tokenize,ssplit"
+}
 ```
 
 Note: We set `nlp_extractor` to only run its tokenize and ssplit annotators. We do not run the
