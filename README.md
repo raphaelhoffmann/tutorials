@@ -44,6 +44,7 @@ to compute word boundaries by running a tokenizer and splitting sentences. Deepd
 `nlp_extractor` for that. We can run the `nlp_extractor` on the command line or as an extraction 
 step in our deepdive application. We opt for the latter and add the following extractor to `application.conf`:
 
+```
    extract_preprocess: {
        style: json_extractor
        before: psql -h ${PGHOST} -p ${PGPORT} -d ${DBNAME} -f ${APP_HOME}/schemas/sentences.sql
@@ -57,6 +58,7 @@ step in our deepdive application. We opt for the latter and add the following ex
        output_relation: sentences
        udf: ${DEEPDIVE_HOME}/examples/nlp_extractor/run.sh -k id -v body -l 100 -a "tokenize,ssplit"
    }
+```
 
 Note: We set `nlp_extractor` to only run its tokenize and ssplit annotators. We do not run the
 parse annotator (which would normally be included), since we don't need parses and parsing requires
