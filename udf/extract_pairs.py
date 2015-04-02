@@ -9,19 +9,17 @@ import collections
 BASE_DIR, throwaway = os.path.split(os.path.realpath(__file__))
 BASE_DIR = os.path.realpath(BASE_DIR + "/..")
 
-Loc = collections.namedtuple('Loc', ['geonameid', 'name', 'lat', 'lon', 'country_code', 'population'])
+Loc = collections.namedtuple('Loc', ['geo_id', 'name'])
 
 cities_dict = dict()
-with open(BASE_DIR + "/data/cities1000.txt", 'rt') as cities_file:
+with open(BASE_DIR + "/../../wikidata/names.tsv", 'rt') as cities_file:
     for line in cities_file:
         cols = line.split('\t')
-        geonameid = int(cols[0])
-        name = cols[1]
-        lat = float(cols[4])
-        lon = float(cols[5])
-        country_code = cols[8]
-        population = int(cols[14])
-        loc = Loc(geonameid=geonameid,name=name,lat=lat,lon=lon,country_code=country_code,population=population)
+        item_id = int(cols[0])
+        language = cols[1]
+        label = cols[2]
+        name = cols[3]
+        loc = Loc(geo_id=geo_id,name=name)
         li = cities_dict.setdefault(name, [])
         li.append(loc)
 
@@ -43,20 +41,20 @@ def generate_candidates(sent_id, words, poses, phrases):
             features = []
 
             # 1. is_most_populous
-            is_most_populous = True
-            for other in matches:
-                if other != loc and other.population > loc.population:
-                    is_most_populous = False
-            if is_most_populous:
-                features.append("is_most_populous")
+            #is_most_populous = True
+            #for other in matches:
+            #    if other != loc and other.population > loc.population:
+            #        is_most_populous = False
+            #if is_most_populous:
+            #    features.append("is_most_populous")
 
             # 2. country
-            features.append('country_' + loc.country_code)
+            #features.append('country_' + loc.country_code)
 
             # 3. near_mention_in_sentence
-            for near in phrases:
-                if near[0] != t_from:
-                    features.append('near_' + '_'.join(words[near[0]:near[1]]))
+            #for near in phrases:
+            #    if near[0] != t_from:
+            #        features.append('near_' + '_'.join(words[near[0]:near[1]]))
 
             features_str = '{' + ','.join(features) + '}'
             mention_id = sent_id + '_' + str(phrase[0]) + '_' + str(phrase[1]) + '_' + str(loc.geonameid)
@@ -67,17 +65,17 @@ def generate_candidates(sent_id, words, poses, phrases):
             # map all locations that are unique
             if len(matches) == 1:
                 true_str = '1' 
-            else:
-                # prefer locations that are both largest and in the US
-                largest = matches[0]
-                for m in matches:
-                    if m.population > largest.population:
-                        largest = m
-                if m.country_code == 'US' and m == loc:
-                    true_str = '1'
+            #else:
+            #    # prefer locations that are both largest and in the US
+            #    largest = matches[0]
+            #    for m in matches:
+            #        if m.population > largest.population:
+            #            largest = m
+            #    if m.country_code == 'US' and m == loc:
+            #        true_str = '1'
 
-            print('\t'.join(['\\N', mention_id, str(sent_id), str(mention_num), mention_str, str(phrase[0]), str(phrase[1]), str(loc.geonameid), '\\N', features_str ]))
-            print('\t'.join(['\\N', mention_id, str(sent_id), str(mention_num), mention_str, str(phrase[0]), str(phrase[1]), str(loc.geonameid), true_str, features_str ]))
+            print('\t'.join(['\\N', mention_id, str(sent_id), str(mention_num), mention_str, str(phrase[0]), str(phrase[1]), str(loc.geo_id), '\\N', features_str ]))
+            print('\t'.join(['\\N', mention_id, str(sent_id), str(mention_num), mention_str, str(phrase[0]), str(phrase[1]), str(loc.geo_id), true_str, features_str ]))
 
         mention_num += 1
 

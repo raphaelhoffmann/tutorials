@@ -10,38 +10,14 @@ from glob import glob
 import queue
 from queue import Queue
 import os
-import urllib
-import urllib.request
-import tarfile
 import re
 import json
+import csv
+import os.path
 
-def download_reuters(data_path=None):
-    # note: this method is inspired by scikit
-    DOWNLOAD_URL = ('http://archive.ics.uci.edu/ml/machine-learning-databases/'
-                    'reuters21578-mld/reuters21578.tar.gz')
-    ARCHIVE_FILENAME = 'reuters21578.tar.gz'
-    if data_path is None:
-        data_home = "."
-        data_path = os.path.join(data_home, "reuters")
-    if not os.path.exists(data_path):
-        """Download the dataset."""
-        print("downloading dataset (once and for all) into %s" %
-              data_path)
-        os.mkdir(data_path)
-
-        def progress(blocknum, bs, size):
-            total_sz_mb = '%.2f MB' % (size / 1e6)
-            current_sz_mb = '%.2f MB' % ((blocknum * bs) / 1e6)
-            print('\rdownloaded %s / %s' % (current_sz_mb, total_sz_mb), end='')
-
-        archive_path = os.path.join(data_path, ARCHIVE_FILENAME)
-        urllib.request.urlretrieve(DOWNLOAD_URL, filename=archive_path,
-                                   reporthook=progress)
-        print("untarring Reuters dataset...")
-        tarfile.open(archive_path, 'r:gz').extractall(data_path)
-        print("done.")
-
+BASE_DIR, throwaway = os.path.split(os.path.realpath(__file__))
+BASE_DIR = os.path.realpath(BASE_DIR + "/..")
+DATA_DIR = BASE_DIR + '/data'
 
 class ReutersParser(SGMLParser):
     q = queue.Queue()
@@ -57,6 +33,7 @@ class ReutersParser(SGMLParser):
         self.in_topics = 0
         self.in_topic_d = 0
         self.title = ""
+        self.id = ""
         self.body = ""
         self.topics = []
         self.topic_d = ""
@@ -70,13 +47,16 @@ class ReutersParser(SGMLParser):
             self.topic_d += data
 
     def start_reuters(self, attributes):
-        pass
+        for name, value in attributes:
+            if name.lower() == "newid":
+                self.id = value
 
     def end_reuters(self):
         #self.body = re.sub(r'\s+', r' ', self.body)
-        self.q.put({'title': self.title,
-                          'body': self.body,
-                          'topics': self.topics})
+        self.q.put({'id': self.id, 
+                    'title': self.title,
+                    'body': self.body,
+                    'topics': self.topics})
         self._reset()
 
     def start_title(self, attributes):
@@ -106,7 +86,7 @@ class ReutersParser(SGMLParser):
         self.topic_d = ""
 
 def stream_documents():
-    data_path = "./reuters"
+    data_path = DATA_DIR + "/reuters"
     for filename in glob(os.path.join(data_path, "*.sgm")):
         filehandle = open(filename, 'r', encoding='latin-1')
         parser = ReutersParser()
@@ -122,12 +102,29 @@ def stream_documents():
                 pass
         parser.close()       
 
-if __name__ == "__main__":
-    download_reuters()
-
-    filehandle = open('./reuters/converted.txt', 'w', encoding='utf-8')
+def sgml_to_json():
+    print("parsing sgml and converting to json")
+    out_path = DATA_DIR + '/reuters/converted.txt'
+    filehandle = open(out_path, 'w', encoding='utf-8')
     for obj in stream_documents():
         obj_str = json.dumps(obj, sort_keys=True)
         print(obj_str, file=filehandle)
     filehandle.close()
+    print("saved output as %s" % out_path)
 
+def json_to_csv():
+    print("converting to csv")
+    in_path = DATA_DIR + '/reuters/converted.txt'
+    out_path = DATA_DIR + '/reuters/converted.csv'
+
+    with open(in_path, 'r', encoding='utf-8') as jsonin, open(out_path, 'w', encoding='utf-8') as tsvout:
+        tsvout = csv.writer(tsvout)
+        for line in jsonin:
+            obj = json.loads(line)
+            tsvout.writerow([obj['id'], obj['body'], obj['title']])
+    print("saved output as %s" % out_path)
+
+
+if __name__ == "__main__":
+    sgml_to_json()
+    json_to_csv()

@@ -1,11 +1,163 @@
-# Entity Linking for Locations
+# Tutorial: Entity Linking for Locations
 
-* start with set of news articles
-* goal is to link cities to the cities1000 database from geonames.org
-  (about 150,000 cities worldwide with names, alternate names, populations, and more)
+References to locations are ubiquitous in text, but many such references are ambiguous. For
+example, Wikipedia lists more than 30 locations named 'San Francisco', 10 songs with
+that name, 2 movies, a magazine, and other things as well.
+In this tutorial, we develop a system that detects mentions of geographic locations
+and links these unambiguously to a database of locations.
+
+We start with a corpus of 20,000 news articles, the Reuters-21578 dataset, which 
+represents articles that appeared on the Reuters newswire in 1987. Our goal is to identify
+mentions of locations in these articles and unambiguously link them to entities in Wikidata, 
+a community-edited database containing 14 million entities, including more than 2 million 
+geographic locations. 
+
+Using wikidata as a database has three major advantages: 
+
+* Wikidata contains not just locations but also many other types of entities in the real 
+  world. This makes it easy to re-use the tools developed for this tutorial to other 
+  entity linking tasks.
+* Wikidata is dense in the sense that it contains many attributes and relationships
+  between entities. As we will see, we can exploit this information to more accurately
+  disambiguate mentions of entities. 
+* Wikidata has an active community enhancing the data, absorbing other available sources
+  (including Freebase) and adding open-data links to other resources. Wikidata is thus
+  growing quickly.
+
+This tutorial assumes that you are already familiar with setting up and running
+deepdive applications. 
+
+## Preparing the Reuters dataset
+
+We first download the Reuters corpus from [UC Irvine repository](http://archive.ics.uci.edu/ml/machine-learning-databases/reuters21578-mld/reuters21578.html).
+The original data is in SGML which we convert to JSON for readability and CSV for loading into the database. The following scripts perform these steps:
+
+    script/fetch-reuters.py
+    script/get-reuters-json-csv.py
+
+Next, we create a schema for articles in the database and load the data. Both can be done by running:
+
+    script/load-reuters.py
+
+The articles are stored as strings of text. To more easily identify mentions we would like
+to compute word boundaries by running a tokenizer and splitting sentences. Deepdive offers the 
+`nlp_extractor` for that. We can run the `nlp_extractor` on the command line or as an extraction 
+step in our deepdive application. We opt for the latter and add the following extractor to `application.conf`:
+
+   extract_preprocess: {
+       style: json_extractor
+       before: psql -h ${PGHOST} -p ${PGPORT} -d ${DBNAME} -f ${APP_HOME}/schemas/sentences.sql
+       input: """
+               SELECT id,
+                 body
+               FROM articles
+               WHERE NOT BODY IS NULL
+               ORDER BY id ASC
+              """
+       output_relation: sentences
+       udf: ${DEEPDIVE_HOME}/examples/nlp_extractor/run.sh -k id -v body -l 100 -a "tokenize,ssplit"
+   }
+
+Note: We set `nlp_extractor` to only run its tokenize and ssplit annotators. We do not run the
+parse annotator (which would normally be included), since we don't need parses and parsing requires
+many hours of computation time on this corpus.
+
+## Preparing the Wikidata dataset
+
+We now download the Wikidata database as a [json dump](http://dumps.wikimedia.org/other/wikidata/).
+Again, we have a script for that:
+
+    script/fetch-wikidata.py
+
+Note that Wikidata`s dumps are updated frequently, and you may need to update the path to the
+latest dump inside the script. See above link for the most recent dumps.
+
+After downloading, unpack it:
+
+    gunzip data/wikidata/dump.json.gz
+
+This data contains much information that we don't need. We therefore extract the information we
+are interested in and store it in a format that we can load into our database system. First,
+we get a list of names (and aliases) for the entities in Wikidata:
+
+    script/get-wikidata-names.py
+
+This will create a file `data/wikidata/names.tsv` with content as follows:
+
+    1	en	label	universe
+    1	en	alias	cosmos
+    1	en	alias	The Universe
+    1	en	alias	Space
+    8	en	label	happiness
+    16	en	label	highway system
+    19	en	label	place of birth
+    19	en	alias	birthplace
+    19	en	alias	born in
+    19	en	alias	POB
+
+The first column is Wikidata`s unique identifier; to access information about an entity, add prefix
+Q to its id and point your browser to `http://www.wikidata.org/wiki/Q[ID]`. The second column represents language, the third
+indicates if a name is the canonical label, or an alias, and the fourth column is the name itself.
+
+Our list of names contains names for all entities in Wikidata, but we would also like to know
+which refer to geographic locations. To obtain geographic locations, we must analyze the relations
+between entities in Wikidata. There is one entity named `geographic location` with id Q2221906.
+Other entities share a relation of type `instance of` with id P31 with this entity. 
+
+We can identify all entities that are instances of geographic locations by analyzing these relations,
+but we have to be careful: There exists another type of relation called `subclass of` with id P279.
+Most entities representing geographic locations are not direct instances of entity `geographic location`,
+but rather of one of its subclasses such as `town`, `city`, or `country`. Even worse, geographic
+locations could be instances of a subclass of a subclass of `geographic location`. To obtain all
+geographic locations, we must compute the transitive closure under the subclass relation.
+
+We first compute all instances of relations `instance_of` (P31) and `subclass_of` (P279):
+
+    script/get-wikidata-relations.py
+
+This creates a file `data/wikidata/relations.tsv` containing triples of entity id, relation id, and entity id.
+
+    1	31	1454986
+    8	31	331769
+    8	31	9415
+    19	31	18608756
+    19	31	18608871
+    19	31	18635217
+    22	31	18608871
+
+Next, we compute the transitive closure under `subclass_of` to obtain all instances of `geographic location` (Q2221906):
+
+    script/get-wikidata-transitive.py
+
+This script actually does more than that: it also computes the transitive closures for instances of `city`
+(Q515), `city with hundreds of thousands of inhabitants` (Q1549591), and `city with millions of inhabitants`
+(Q1637706). As we will see, these distinctions can help us in scoring potential location disambiguations.
+The output is a file `data/wikidata/transitive.tsv`:
+
+    31	2221906
+    33	2221906
+    45	2221906
+    51	2221906
+    55	2221906
+
+Finally, we would like to extract latitude and longitude of locations. Again, this information will be
+useful in scoring location disambiguations.
+
+    script/get-wikidata-coordinate-locations.py 
+
+This script creates a file `data/wikidata/coordinate-locations.tsv` with triples of entity id, latitude, longitude:
+
+    31      51      5
+    33      64      26
+    45      38.7    -9.1833333333333
+    51      -90     0
+    55      52.316666666667 5.55
+    62      37.766666666667 -122.43333333333
+
 
 ## Generating Candidates
 
+We now have all data ready 
 * candidates: all sequences of consecutive tokens with NNP part-of-speech tags
 * a naive approach to linking is to find exact matches of these candidates
   with entries in our cities database
@@ -29,7 +181,7 @@ schema.variables {
 * our candidate table has the following schema
 
 ```sql
-ROP TABLE IF EXISTS locations CASCADE;
+DROP TABLE IF EXISTS locations CASCADE;
 CREATE TABLE locations (
         id bigint,
         mention_id varchar(100),
