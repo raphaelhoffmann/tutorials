@@ -99,7 +99,7 @@ This will create a file `data/wikidata/names.tsv` with content as follows:
     19	en	alias	POB
 ```
 
-The first column is Wikidata`s unique identifier; to access information about an entity, add prefix
+The first column is Wikidata's unique identifier; to access information about an entity, add prefix
 Q to its id and point your browser to `http://www.wikidata.org/wiki/Q[ID]`. The second column represents language, the third
 indicates if a name is the canonical label, or an alias, and the fourth column is the name itself.
 
@@ -149,7 +149,7 @@ The output is a file `data/wikidata/transitive.tsv`:
 ```
 
 We obtain 2,907,062 instances of class `geographic location`, 36,036 of type `city`, 401 of type `city with hundreds of inhabitants` 
-178 of type `city with millions of inhabitants`, and XX of type `country`.
+178 of type `city with millions of inhabitants`, and 2148 of type `country`. Countries include ones that no longer exist, hence the large number.
 
 Finally, we would like to extract latitude and longitude of locations. Again, this information will be
 useful in scoring location disambiguations.
@@ -316,7 +316,7 @@ city {
 }
 ```
 
-We give larger weights to classes of larger locations; for details see (application.conf)[application.conf].
+We give larger weights to classes of larger locations; for details see [application.conf](application.conf).
 
 Next, we would like to give a preference to subsequently mentioned cities that
 are close to each other in geographic distance.
@@ -384,7 +384,7 @@ Shanghai    |    8686 | It said the venture will be based in Shanghai and produc
 Tianjin     |   11736 | China has signed a 130 mln dlr loan agreement with the World Bank to partly finance 12 new berths with an annual capacity of 6.28 mln tonnes at the 20 mln tonne a year capacity Tianjin port , the New China News Agency said .
 ```
 
-You can verify the target locations by opening Wikidata's pages for (Q84)[http://www.wikidata.org/wiki/Q84], (Q8686)[http://www.wikidata.org/wiki/Q8686], and (Q11736)[http://www.wikidata.org/wiki/Q11736] and Reuters' full articles.
+You can verify the target locations by opening Wikidata's pages for [Q84](http://www.wikidata.org/wiki/Q84), [Q8686](http://www.wikidata.org/wiki/Q8686), and [Q11736](http://www.wikidata.org/wiki/Q11736) and Reuters' full articles.
 
 
 ## Weight learning
