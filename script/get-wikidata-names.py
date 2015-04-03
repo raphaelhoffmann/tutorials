@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 
+import os
 import json 
 import collections
 
@@ -9,7 +10,7 @@ DATA_DIR = BASE_DIR + '/data'
 
 languages = [ 'en' ]
 
-def parse_json(line):
+def parse_json(line,w):
     obj = json.loads(line)
     id = obj['id'][1:]
     #typ = obj['type']
@@ -17,19 +18,19 @@ def parse_json(line):
     for lang in languages:
         if 'labels' in obj and lang in obj['labels']:
             label = obj['labels'][lang]['value']
-            print(id + '\t' + lang + '\t' + 'label' + '\t' + label.replace('\t', ' ').replace('\n', ' '))
+            print(id + '\t' + lang + '\t' + 'label' + '\t' + label.replace('\t', ' ').replace('\n', ' '), file=w)
 
         if 'aliases' in obj and lang in obj['aliases']:
             aliases = [a['value'] for a in obj['aliases'][lang]]
             for alias in aliases:
-                print(id + '\t' + lang + '\t' + 'alias' + '\t' + alias.replace('\t', ' ').replace('\n', ' '))
+                print(id + '\t' + lang + '\t' + 'alias' + '\t' + alias.replace('\t', ' ').replace('\n', ' '), file=w)
 
 
-with open(DATA_DIR + '/wikidata/dump.json', 'r') as f:
+with open(DATA_DIR + '/wikidata/dump.json', 'r') as f, open(DATA_DIR + '/wikidata/names.tsv', 'w') as w:
     for line in f:
         line = line.rstrip()
         if line == '[' or line == ']':
             continue
         # strip trailing commas
         line = line.rstrip(',')
-        parse_json(line)
+        parse_json(line,w)

@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 
+import os
 import json 
 import collections
 
@@ -7,6 +8,7 @@ import collections
 
 clazzes = [ 
     2221906, # geographic location
+    6256,    # country
     1637706, # city with millions of inhabitants
     1549591, # city with hundreds of thousands of inhabitants
     515,     # city
@@ -42,7 +44,7 @@ def transitive_closure(id, sel):
         for sid in subsets:
             transitive_closure(sid, sel) 
 
-def get_items(sel, clazz):
+def get_items(sel, clazz, w):
     with open(DATA_DIR + '/wikidata/relations.tsv', 'r') as f:
         last = -1
         for line in f:
@@ -56,10 +58,10 @@ def get_items(sel, clazz):
             if not rel == '31':
                 continue
             if id2 in sel:
-                print(str(id1) + '\t' + str(clazz))
+                print(str(id1) + '\t' + str(clazz), file=w)
                 last = id1
 
-with open(DATA_DIR + '/wikidata/relations.tsv', 'r') as f:
+with open(DATA_DIR + '/wikidata/relations.tsv', 'r') as f, open(DATA_DIR + '/wikidata/transitive.tsv', 'w') as w:
     for line in f:
         id1str,rel,id2str = line.split('\t')
         id1 = int(id1str)
@@ -77,6 +79,6 @@ with open(DATA_DIR + '/wikidata/relations.tsv', 'r') as f:
     for clazz in clazzes:
         sel = set()
         transitive_closure(clazz, sel)
-        get_items(sel, clazz)
+        get_items(sel, clazz, w)
 
     

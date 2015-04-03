@@ -9,21 +9,40 @@ import collections
 BASE_DIR, throwaway = os.path.split(os.path.realpath(__file__))
 BASE_DIR = os.path.realpath(BASE_DIR + "/..")
 
-Loc = collections.namedtuple('Loc', ['geo_id', 'name'])
+Loc = collections.namedtuple('Loc', ['item_id', 'name'])
+
+loc_ids_set = set()
+with open(BASE_DIR + "/data/wikidata/transitive.tsv", 'rt') as transitive_file:
+    print('loading transitive.tsv', file=sys.stderr)
+    for line in transitive_file:
+        cols = line.split('\t')
+        item_id = int(cols[0])
+        clazz = int(cols[1])
+        if clazz == 2221906:
+            loc_ids_set.add(item_id)
+    print('done', file=sys.stderr)
+
 
 cities_dict = dict()
-with open(BASE_DIR + "/../../wikidata/names.tsv", 'rt') as cities_file:
+with open(BASE_DIR + "/data/wikidata/names.tsv", 'rt') as cities_file:
+    print('loading names.tsv', file=sys.stderr)
     for line in cities_file:
         cols = line.split('\t')
         item_id = int(cols[0])
+        if not item_id in loc_ids_set:
+           continue
         language = cols[1]
         label = cols[2]
-        name = cols[3]
-        loc = Loc(geo_id=geo_id,name=name)
+        if not label == 'label':
+           continue #skip aliases for now
+        name = cols[3].rstrip()
+        loc = Loc(item_id=item_id,name=name)
         li = cities_dict.setdefault(name, [])
         li.append(loc)
+        #print('added ' + name, file=sys.stderr)
+    print('done', file=sys.stderr)
 
-#Can = collections.namedtuple('Can', ['id', 'mention_id', 'sent_id', 'mention_num', 'mention_str', 'w_from', 'w_to', 'loc_id', 'is_correct', 'features'])
+#Can = collections.namedtuple('Can', ['id', 'mention_id', 'sent_id', 'mention_num', 'mention_str', 'w_from', 'w_to', 'item_id', 'is_correct', 'features'])
 
 def generate_candidates(sent_id, words, poses, phrases):
     mention_num = 0
@@ -32,8 +51,10 @@ def generate_candidates(sent_id, words, poses, phrases):
         t_to = phrase[1]
         mention_str = ' '.join(words[phrase[0]:phrase[1]])
         matches = cities_dict.get(mention_str)
+        #print(mention_str, file=sys.stderr)
         if not matches:
             continue
+        #print(str(len(matches)), file=sys.stderr)
         
         for loc in matches:
 
@@ -57,7 +78,7 @@ def generate_candidates(sent_id, words, poses, phrases):
             #        features.append('near_' + '_'.join(words[near[0]:near[1]]))
 
             features_str = '{' + ','.join(features) + '}'
-            mention_id = sent_id + '_' + str(phrase[0]) + '_' + str(phrase[1]) + '_' + str(loc.geonameid)
+            mention_id = sent_id + '_' + str(phrase[0]) + '_' + str(phrase[1]) + '_' + str(loc.item_id)
 
             # supervise
             true_str = '\\N'
@@ -74,8 +95,8 @@ def generate_candidates(sent_id, words, poses, phrases):
             #    if m.country_code == 'US' and m == loc:
             #        true_str = '1'
 
-            print('\t'.join(['\\N', mention_id, str(sent_id), str(mention_num), mention_str, str(phrase[0]), str(phrase[1]), str(loc.geo_id), '\\N', features_str ]))
-            print('\t'.join(['\\N', mention_id, str(sent_id), str(mention_num), mention_str, str(phrase[0]), str(phrase[1]), str(loc.geo_id), true_str, features_str ]))
+            print('\t'.join(['\\N', mention_id, str(sent_id), str(mention_num), mention_str, str(phrase[0]), str(phrase[1]), str(loc.item_id), '\\N', features_str ]))
+            print('\t'.join(['\\N', mention_id, str(sent_id), str(mention_num), mention_str, str(phrase[0]), str(phrase[1]), str(loc.item_id), true_str, features_str ]))
 
         mention_num += 1
 

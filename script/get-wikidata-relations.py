@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 
+import os
 import json 
 import collections
 import sys
@@ -19,7 +20,7 @@ DATA_DIR = BASE_DIR + '/data'
 
 relations = ['P31', 'P279']
 
-def parse_json(line):
+def parse_json(line, w):
   obj = json.loads(line)
   id = obj['id'][1:] # strip Q
   #typ = obj['type']
@@ -32,15 +33,15 @@ def parse_json(line):
         for i in rs:
           try: 
             oid = i['mainsnak']['datavalue']['value']['numeric-id']
-            print(str(id) + '\t' + r[1:] + '\t' + str(oid))
+            print(str(id) + '\t' + r[1:] + '\t' + str(oid), file=w)
           except KeyError:
             print('ignoring keyerror', file=sys.stderr) 
 
-with open(DATADIR + '/wikidata/dump.json', 'r') as f:
+with open(DATA_DIR + '/wikidata/dump.json', 'r') as f, open(DATA_DIR + '/wikidata/relations.tsv', 'w') as w:
     for line in f:
         line = line.rstrip()
         if line == '[' or line == ']':
             continue
         # strip trailing commas
         line = line.rstrip(',')
-        parse_json(line)
+        parse_json(line, w)
