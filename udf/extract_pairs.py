@@ -84,8 +84,13 @@ def generate_candidates(sent_id, words, poses, phrases):
             true_str = '\\N'
 
             # map all locations that are unique
-            if len(matches) == 1:
-                true_str = '1' 
+            #if len(matches) == 1:
+            #    true_str = '1' 
+            
+            # if phrase is followed by 'said', then likely not a location
+            if t_to < len(words) and words[t_to] == 'said':
+                true_str = '0'
+ 
             #else:
             #    # prefer locations that are both largest and in the US
             #    largest = matches[0]

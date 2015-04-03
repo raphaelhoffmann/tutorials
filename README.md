@@ -265,8 +265,10 @@ we have to disambiguate among 7 alternative entities for each mention.
 ## Probabilistic Inference
 
 To disambiguate mentions, we need to design features that allow the system
-to differentially weight different mention-entity pairings. A variety of
-of information may help:
+to differentially weight different mention-entity pairings. Both, information
+about entities and information about the context of a mention in text may help.
+
+Information about entities in database:
 
 * Locations that are larger or are generally more important are more likely to
   be referenced that others. For example, locations with
@@ -276,14 +278,22 @@ of information may help:
   different cities in Argentina and it also contains a mention `San Francisco`,
   then it may be more likely that this mention indeed refers to San Francisco, Córdoba
   in Argentina and not San Francisco, California.
-* The context in which a mention appears may help to determine if the mention
-  refers to a location at all, or which location it refers to. For example, 
+
+Information about context of mention in text:
+
+* Words appearing before or after a mention may help to determine if the mention
+  refers to a location, or which location it refers to. For example, 
   a prefix `baseball stadium in` makes it more
   likely that a mention is indeed a location, that it's a city, that the city
   is in the U.S., and that the city is one of those having a baseball stadium.
+* Other named entities appearing in the same sentence may help. For example, mentions
+  of `Washington` are more likely to refer to the nation's capital when the
+  president or Congress are named as well; conversely, they are more likely to
+  refer to the state when Seattle or Mount Rainier are mentioned.
 
 Let's now encode these intuitions as factors over our variables. In this section,
-we also set a manual weight for each factor. The following section then describes
+we focus on factors about entities in the database and manually assign a weight
+to each factor. The following section then discusses factors about context and describes
 how we can learn the weights automatically from distantly supervised annotations.
 
 First, we would like to assign more weight to larger, more important locations.
@@ -306,7 +316,7 @@ city {
 }
 ```
 
-We give larger weights to classes of larger locations.
+We give larger weights to classes of larger locations; for details see (application.conf)[application.conf].
 
 Next, we would like to give a preference to subsequently mentioned cities that
 are close to each other in geographic distance.
@@ -336,21 +346,6 @@ install the [cube](http://www.postgresql.org/docs/9.4/static/cube.html) and
 See this [documentation](http://www.postgresql.org/docs/9.4/static/contrib.html) for more
 information on how to install these modules.
 
-Next we add context features. Our 
-
-```
-context_features {
-  input_query = """
-    SELECT l.id as "locations.id", l.is_correct as "locations.is_correct", unnest(f.features) as "locations.feature"
-    FROM locations l, context_features f
-    WHERE l.sentence_id = f.sentence_id
-    AND l.mention_num = f.mention_num;
-    """
-  function: "IsTrue(locations.is_correct)"
-  weight: "?(locations.feature)"
-}
-```
-
 Finally, we must ensure that the system maps each mention to at most
 one location entity. We encode this constraint using a factor that gives a penalty
 when two variables of the same mention have a positive boolean value:
@@ -370,20 +365,35 @@ one_of_n_features {
 }
 ```
 
-At this point, we have a fully functioning entity-linking system for locations.
-Try running `./run.sh` and inspect the outputs:
+At this point, we have a functioning entity-linking system for locations.
+Try running `./run.sh` and inspecting the outputs:
 
 ```sql
-SELECT 
+SELECT mention_str, loc_id, sentence 
+FROM locations_is_correct_inference l, sentences s 
+WHERE l.sentence_id = s.sentence_id
+AND expectation > .9 
+ORDER BY random()
+LIMIT 100;
+```
+Although there's noise in the output, many locations are resolved correctly, for example:
 
 ```
+London      |      84 | The SES is discussing the idea with the London and New York authorities .
+Shanghai    |    8686 | It said the venture will be based in Shanghai and produce agents for use in hotels and industries .
+Tianjin     |   11736 | China has signed a 130 mln dlr loan agreement with the World Bank to partly finance 12 new berths with an annual capacity of 6.28 mln tonnes at the 20 mln tonne a year capacity Tianjin port , the New China News Agency said .
+```
+
+You can verify the target locations by opening Wikidata's pages for (Q84)[http://www.wikidata.org/wiki/Q84], (Q8686)[http://www.wikidata.org/wiki/Q8686], and (Q11736)[http://www.wikidata.org/wiki/Q11736] and Reuters' full articles.
 
 
 ## Weight learning
 
 So far, we have manually set weights for our factors based on intuitions. These weights,
 however, may not be optimal and we may obtain more accurate results by learning weights
-from data.
+from data. Furthermore, we would like to leverage a large number of distinct features
+about the context of a mention. It would be difficult or impossible to manually assign
+weights to such features.
 
 To learn weights, we must make two changes to our Deepdive application:
 
@@ -396,16 +406,36 @@ to more efficiently generate annotations.
 
 Here are a variety of ideas for distant supervision rules:
 
-* annotate unambiguous locations
-* annotate locations that can be disambiguated by zip codes and phone area codes
+1. annotate unambiguous locations
+2. annotate locations that can be disambiguated by zip codes and phone area codes
   appearing in the same document
-* many documents contain references to companies and persons; use background
+3. many documents contain references to companies and persons; use background
   information from Wikidata for disambiguation
-* find matches to other (non-location) Wikidata entities; if these share a relation
+4. find matches to other (non-location) Wikidata entities; if these share a relation
   with a location appearing in the same document, annotate
-* write prefix/suffix patterns that have high precision
-* meta information in the corpus allows disambiguation (eg. document tags such as `U.S. national`)
+5. write prefix/suffix patterns that have high precision
+6. meta information in the corpus allows disambiguation (eg. document tags such as `U.S. national`)
+
+Our distant supervision rules use a combination of 1. and 5. 
+
+We have also created an extractor that populates a table called `context_features` with
+features for phrases appearing before or after a mention, and other named entities appearing
+in the same sentence. These features are then added to our inference with the following factor: 
+
+```
+context_features {
+  input_query = """
+    SELECT l.id as "locations.id", l.is_correct as "locations.is_correct", unnest(f.features) as "locations.feature"
+    FROM locations l, context_features f
+    WHERE l.sentence_id = f.sentence_id
+    AND l.mention_num = f.mention_num;
+    """
+  function: "IsTrue(locations.is_correct)"
+  weight: "?(locations.feature)"
+}
+```
 
 
+TODO: Precision and Recall analysis
 
 
