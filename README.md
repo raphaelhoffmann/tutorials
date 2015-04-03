@@ -366,7 +366,8 @@ one_of_n_features {
 ```
 
 At this point, we have a functioning entity-linking system for locations.
-Try running `./run.sh` and inspecting the outputs:
+Set the pipeline to `entity_features_only` in [application.conf](application.conf),
+then run `./run.sh` and inspect the outputs:
 
 ```sql
 SELECT mention_str, loc_id, sentence 
@@ -376,7 +377,7 @@ AND expectation > .9
 ORDER BY random()
 LIMIT 100;
 ```
-Although there's noise in the output, many locations are resolved correctly, for example:
+Although there's some noise in the output, many locations are resolved correctly, for example:
 
 ```
 London      |      84 | The SES is discussing the idea with the London and New York authorities .
@@ -435,7 +436,10 @@ context_features {
 }
 ```
 
+To run this enhanced entity linker, set the pipeline to `all_features` in [application.conf](application.conf),
+then run `./run.sh` and inspect the outputs as described in the previous section.
 
-TODO: Precision and Recall analysis
+## Plotting locations on a map
 
-
+You can use [Cartopy](https://github.com/SciTools/cartopy) (python) or [Mapbox](http://www.mapbox.com) to visualize
+the locations on a map. 
