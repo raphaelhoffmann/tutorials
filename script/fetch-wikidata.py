@@ -27,7 +27,7 @@ def download_wikidata():
         print("downloading %s" % DOWNLOAD_URL)
         print("into %s" % data_path)
         if not os.path.exists(data_path):
-          os.mkdir(data_path)
+          os.makedirs(data_path)
 
         def progress(blocknum, bs, size):
             total_sz_mb = '%.2f MB' % (size / 1e6)
