@@ -6,26 +6,36 @@ that name, 2 movies, a magazine, and several other things as well.
 In this tutorial, we develop a system that detects mentions of geographic locations
 and links these unambiguously to a database of locations.
 
-We start with a corpus of 20,000 news articles, the [Reuters-21578 dataset](http://archive.ics.uci.edu/ml/machine-learning-databases/reuters21578-mld/reuters21578.html), which 
+We start with a corpus of 20,000 news articles, the [Reuters-21578 dataset](http://archive.ics.uci.edu/ml/machine-learning-databases/reuters21578-mld/reuters21578.html), which
 represents articles that appeared on the Reuters newswire in 1987. Our goal is to identify
-mentions of locations in these articles and unambiguously link them to entities in [Wikidata](http://www.wikidata.org), 
-a community-edited database containing 14 million entities, including more than 2 million 
-geographic locations. 
+mentions of locations in these articles and unambiguously link them to entities in [Wikidata](http://www.wikidata.org),
+a community-edited database containing 14 million entities, including more than 2 million
+geographic locations.
 
-Using wikidata as a database has three major advantages: 
+Using wikidata as a database has three major advantages:
 
-* Wikidata contains not just locations but also many other types of entities in the real 
-  world. This makes it easy to re-use the tools developed for this tutorial to other 
+* Wikidata contains not just locations but also many other types of entities in the real
+  world. This makes it easy to re-use the tools developed for this tutorial to other
   entity linking tasks.
 * Wikidata is dense in the sense that it contains many attributes and relationships
   between entities. As we will see, we can exploit this information to more accurately
-  disambiguate mentions of entities. 
+  disambiguate mentions of entities.
 * Wikidata has an active community enhancing the data, absorbing other available sources
   (including Freebase) and adding open-data links to other resources. Wikidata is thus
   growing quickly.
 
 This tutorial assumes that you are already familiar with setting up and running
-deepdive applications. 
+deepdive applications.
+
+## Configuration
+The file env_local.sh.TEMPLATE contains a default environment configuration for MacOS. Please modify
+the environment variables if needed and save the file as env_local.sh after your changes.
+
+If you haven't used the nlp_extractor with DeepDive before, compile it by executing the following:
+```
+    cd $DEEPDIVE_HOME/examples/nlp_extractor
+    sbt stage
+````
 
 ## Preparing the Reuters dataset
 
@@ -37,11 +47,11 @@ The original data is in SGML which we convert to JSON for readability and CSV fo
 
 Next, we create a schema for articles in the database and load the data. Both can be done by running:
 
-    script/load-reuters.py
+    script/load-reuters.sh
 
 The articles are stored as strings of text. To more easily identify mentions we would like
-to compute word boundaries by running a tokenizer, splitting sentences, and computing part-of-speech tags. Deepdive offers the 
-`nlp_extractor` for that. We can run the `nlp_extractor` on the command line or as an extraction 
+to compute word boundaries by running a tokenizer, splitting sentences, and computing part-of-speech tags. Deepdive offers the
+`nlp_extractor` for that. We can run the `nlp_extractor` on the command line or as an extraction
 step in our deepdive application. We opt for the latter and add the following extractor to `application.conf`:
 
 ```
@@ -59,6 +69,8 @@ extract_preprocess: {
   udf: ${DEEPDIVE_HOME}/examples/nlp_extractor/run.sh -k id -v body -l 100 -a "tokenize,ssplit,pos"
 }
 ```
+To run the nlp_extractor as an extraction step, set the `pipeline.run` parameter to `preprocess` in
+`application.conf` and execute `run.sh`.
 
 Note: We set `nlp_extractor` to only run its tokenize, ssplit, and pos annotators. We do not run the
 parse annotator (which would normally be included), since we don't need parses and parsing requires
@@ -106,7 +118,7 @@ indicates if a name is the canonical label, or an alias, and the fourth column i
 Our list of names contains names for all entities in Wikidata, but we would also like to know
 which refer to geographic locations. To obtain geographic locations, we must analyze the relations
 between entities in Wikidata. There is one entity named `geographic location` with id Q2221906.
-Other entities share a relation of type `instance of` with id P31 with this entity. 
+Other entities share a relation of type `instance of` with id P31 with this entity.
 
 We can identify all entities that are instances of geographic locations by analyzing these relations,
 but we have to be careful: There exists another type of relation called `subclass of` with id P279.
@@ -148,13 +160,13 @@ The output is a file `data/wikidata/transitive.tsv`:
     55	2221906
 ```
 
-We obtain 2,907,062 instances of class `geographic location`, 36,036 of type `city`, 401 of type `city with hundreds of inhabitants` 
+We obtain 2,907,062 instances of class `geographic location`, 36,036 of type `city`, 401 of type `city with hundreds of inhabitants`
 178 of type `city with millions of inhabitants`, and 2148 of type `country`. Countries include ones that no longer exist, hence the large number.
 
 Finally, we would like to extract latitude and longitude of locations. Again, this information will be
 useful in scoring location disambiguations.
 
-    script/get-wikidata-coordinate-locations.py 
+    script/get-wikidata-coordinate-locations.py
 
 This script creates a file `data/wikidata/coordinate-locations.tsv` with triples of entity id, latitude, longitude:
 
@@ -177,20 +189,20 @@ We now have all data ready for finding location mentions and linking them to Wik
 
 ## Generating Candidates
 
-To find references to geographic locations, we first identify spans in the article text 
+To find references to geographic locations, we first identify spans in the article text
 that may represent such references. We assume that geographic locations are typically
-refered to by named entities, so we compute all sequences of consecutive tokens 
+refered to by named entities, so we compute all sequences of consecutive tokens
 with NNP part-of-speech tags. For example, for the sentence:
 
     NNP  VB               NNP NNP       .
-    Cook gave a speech in San Francisco . 
+    Cook gave a speech in San Francisco .
 
 we would identify the two spans `Cook` and `San Francisco`. Our corpus contains
 202,055 such spans.
 
 A naive approach to our entity linking problem would simply return exact matches of these
 spans with names in our database. There are two problems to this:
-  
+
 1. We may miss links, perhaps because a city has multiple names or spellings.
 
 2. We may get multiple links, because there are multiple cities with the same name
@@ -201,11 +213,11 @@ aliases which we can use for matching.
 
 The more important problem, however, is the second one: There are dozens of entities
 named `San Francisco`. And indeed, this is not a contrived example but a very general
-problem: On average we find 7 cities with the same name, across all mentions with 
+problem: On average we find 7 cities with the same name, across all mentions with
 matches in our database. How do we determine which one is referenced?
 
 As typical for a Deepdive application, we are going to apply probabilistic inference
-to determine which location is most likely referenced. This requires us splitting the 
+to determine which location is most likely referenced. This requires us splitting the
 problem into two tasks: generating candidates and assigning truth values to these
 candidates.
 
@@ -220,7 +232,7 @@ schema.variables {
 }
 ```
 
-For our candidate table, we choose the following schema: 
+For our candidate table, we choose the following schema:
 
 ```sql
 DROP TABLE IF EXISTS locations CASCADE;
@@ -238,10 +250,10 @@ CREATE TABLE locations (
 ) DISTRIBUTED BY (mention_id);
 ```
 
-We add one row for each combination of named entity span and entity in our 
+We add one row for each combination of named entity span and entity in our
 location database. But wait – that is impossible! There are 202,055 spans and
 2,139,073 geographic locations, hence 432,210,395,015 combinations.
- 
+
 This means that we would need to do probabilistic inference over more than
 432 billion variables, not an easy problem.
 
@@ -282,7 +294,7 @@ Information about entities in database:
 Information about context of mention in text:
 
 * Words appearing before or after a mention may help to determine if the mention
-  refers to a location, or which location it refers to. For example, 
+  refers to a location, or which location it refers to. For example,
   a prefix `baseball stadium in` makes it more
   likely that a mention is indeed a location, that it's a city, that the city
   is in the U.S., and that the city is one of those having a baseball stadium.
@@ -370,10 +382,10 @@ Set the pipeline to `entity_features_only` in [application.conf](application.con
 then run `./run.sh` and inspect the outputs:
 
 ```sql
-SELECT mention_str, loc_id, sentence 
-FROM locations_is_correct_inference l, sentences s 
+SELECT mention_str, loc_id, sentence
+FROM locations_is_correct_inference l, sentences s
 WHERE l.sentence_id = s.sentence_id
-AND expectation > .9 
+AND expectation > .9
 ORDER BY random()
 LIMIT 100;
 ```
@@ -401,7 +413,7 @@ To learn weights, we must make two changes to our Deepdive application:
 1. We must replace our manually set weights with `?`.
 
 2. We must provide annotations on a subset of the variables.
- 
+
 While manually annotating data is expensive, we can write distant supervision rules
 to more efficiently generate annotations.
 
@@ -417,11 +429,11 @@ Here are a variety of ideas for distant supervision rules:
 5. write prefix/suffix patterns that have high precision
 6. meta information in the corpus allows disambiguation (eg. document tags such as `U.S. national`)
 
-Our distant supervision rules use a combination of 1. and 5. 
+Our distant supervision rules use a combination of 1. and 5.
 
 We have also created an extractor that populates a table called `context_features` with
 features for phrases appearing before or after a mention, and other named entities appearing
-in the same sentence. These features are then added to our inference with the following factor: 
+in the same sentence. These features are then added to our inference with the following factor:
 
 ```
 context_features {
@@ -442,4 +454,4 @@ then run `./run.sh` and inspect the outputs as described in the previous section
 ## Plotting locations on a map
 
 You can use [Cartopy](https://github.com/SciTools/cartopy) (python) or [Mapbox](http://www.mapbox.com) to visualize
-the locations on a map. 
+the locations on a map.
