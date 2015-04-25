@@ -1,5 +1,5 @@
-DROP TABLE IF EXISTS locations CASCADE;
-CREATE TABLE locations (
+DROP TABLE IF EXISTS entities CASCADE;
+CREATE TABLE entities (
 	id bigint,
         mention_id varchar(100),
         document_id varchar(100),
@@ -8,7 +8,5 @@ CREATE TABLE locations (
 	mention_str varchar(100),
         w_from int,
         w_to int,
-	loc_id int,
-        is_correct boolean,
-        features text[]
+        is_location boolean
 ); -- DISTRIBUTED BY (mention_id);

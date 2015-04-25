@@ -33,8 +33,8 @@ with open(BASE_DIR + "/data/wikidata/names.tsv", 'rt') as cities_file:
            continue
         language = cols[1]
         label = cols[2]
-        if not label == 'label':
-           continue #skip aliases for now
+        #if not label == 'label':
+        #   continue #skip aliases for now
         name = cols[3].rstrip()
         loc = Loc(item_id=item_id,name=name)
         li = cities_dict.setdefault(name, [])
@@ -44,7 +44,7 @@ with open(BASE_DIR + "/data/wikidata/names.tsv", 'rt') as cities_file:
 
 #Can = collections.namedtuple('Can', ['id', 'mention_id', 'sent_id', 'mention_num', 'mention_str', 'w_from', 'w_to', 'item_id', 'is_correct', 'features'])
 
-def generate_candidates(sent_id, words, poses, phrases):
+def generate_candidates(doc_id, sent_id, words, poses, phrases):
     mention_num = 0
     for phrase in phrases:
         t_from = phrase[0]
@@ -100,8 +100,8 @@ def generate_candidates(sent_id, words, poses, phrases):
             #    if m.country_code == 'US' and m == loc:
             #        true_str = '1'
 
-            print('\t'.join(['\\N', mention_id, str(sent_id), str(mention_num), mention_str, str(phrase[0]), str(phrase[1]), str(loc.item_id), '\\N', features_str ]))
-            print('\t'.join(['\\N', mention_id, str(sent_id), str(mention_num), mention_str, str(phrase[0]), str(phrase[1]), str(loc.item_id), true_str, features_str ]))
+            print('\t'.join(['\\N', mention_id, str(doc_id), str(sent_id), str(mention_num), mention_str, str(phrase[0]), str(phrase[1]), str(loc.item_id), '\\N', features_str ]))
+            #print('\t'.join(['\\N', mention_id, str(doc_id), str(sent_id), str(mention_num), mention_str, str(phrase[0]), str(phrase[1]), str(loc.item_id), true_str, features_str ]))
 
         mention_num += 1
 
@@ -121,8 +121,8 @@ if __name__ == "__main__":
     with fileinput.input() as input_files:
         for line in input_files:
             #print(line, file=sys.stderr)
-            sent_id, words_str, poses_str = line.split('\t')
+            doc_id, sent_id, words_str, poses_str = line.split('\t')
             words = words_str.split(' ')
             poses = poses_str.split(' ')
             phrases = generate_nnp_phrases(words, poses)
-            generate_candidates(sent_id, words, poses, phrases)
+            generate_candidates(doc_id, sent_id, words, poses, phrases)
