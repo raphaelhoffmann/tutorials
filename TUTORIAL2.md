@@ -1,7 +1,7 @@
 # Tutorial: Coreference Resolution Within Documents
 
-* many 
-
+ 
+<!--
 References to locations are ubiquitous in text, but many such references are ambiguous. For
 example, Wikipedia lists [more than 30 locations](https://en.wikipedia.org/wiki/San_Francisco_(disambiguation)) named 'San Francisco', 10 songs with
 that name, 2 movies, a magazine, and several other things as well.
@@ -28,6 +28,7 @@ Using wikidata as a database has three major advantages:
 
 This tutorial assumes that you are already familiar with setting up and running
 deepdive applications. 
+-->
 
 ## Preparing the Reuters dataset
 
@@ -142,17 +143,18 @@ Would like to reduce this
 But which should be the representative mentions?
 
 
-
 As typical for a Deepdive application, we are going to apply probabilistic inference
 to determine the set of representative mentions and the links between all mentions and
 their representative mentions. This requires us splitting the 
 problem into two tasks: generating candidates and assigning truth values to these
 candidates.
 
+<!--
 Our candidates are pairs of mentions in the text and entities in the database,
 and we define a boolean random variable for each candidate to indicate if the
 mention refers to the entity in the database. We thus define the following type
 of variable:
+-->
 
 ```
 schema.variables {
@@ -160,7 +162,7 @@ schema.variables {
     orglinks.is_link: Boolean
 }
 ```
-
+<!--
 For our candidate table, we choose the following schema: 
 
 ```sql
@@ -206,9 +208,13 @@ reduce recall.
 With our heuristic, we obtain 344,806 candidates covering 51,218 unique
 mentions for which we found at least one match. This means that on average
 we have to disambiguate among 7 alternative entities for each mention.
+-->
+TODO
 
 ## Probabilistic Inference
 
+TODO
+<!--
 * encourage 
 
 To disambiguate mentions, we need to design features that allow the system
@@ -333,10 +339,11 @@ Tianjin     |   11736 | China has signed a 130 mln dlr loan agreement with the W
 ```
 
 You can verify the target locations by opening Wikidata's pages for [Q84](http://www.wikidata.org/wiki/Q84), [Q8686](http://www.wikidata.org/wiki/Q8686), and [Q11736](http://www.wikidata.org/wiki/Q11736) and Reuters' full articles.
-
+-->
 
 ## Weight learning
 
+<!--
 So far, we have manually set weights for our factors based on intuitions. These weights,
 however, may not be optimal and we may obtain more accurate results by learning weights
 from data. Furthermore, we would like to leverage a large number of distinct features
@@ -385,8 +392,43 @@ context_features {
 
 To run this enhanced entity linker, set the pipeline to `all_features` in [application.conf](application.conf),
 then run `./run.sh` and inspect the outputs as described in the previous section.
+-->
 
-## Plotting locations on a map
+``sql
+select i.*, o1.name, o2.name, p.expectation from orglinks_is_link_inference i, orgs o1, orgs o2, orgprotos_is_proto_inference p where i.mention_id = o1.mention_id and i.proto_mention_id = o2.mention_id and i.proto_mention_id = p.proto_mention_id order by o1.document_id, o1.sentence_num, o1.mention_num limit 100;
+``
 
-You can use [Cartopy](https://github.com/SciTools/cartopy) (python) or [Mapbox](http://www.mapbox.com) to visualize
-the locations on a map. 
+
+``
+  mention_id   | proto_mention_id | is_link |        name         |        name         | is_proto
+---------------+------------------+---------+---------------------+---------------------+----------
+ 10006_-1_0_2  | 10006_-1_0_2     |    0.98 | GENCORP             | GENCORP             |    0.989
+ 10006_0_0_1   | 10006_-1_0_2     |   0.518 | GenCorp             | GENCORP             |    0.989
+ 10006_0_0_1   | 10006_0_0_1      |   0.467 | GenCorp             | GenCorp             |     0.82
+ 10006_0_13_14 | 10006_-1_0_2     |   0.139 | Shelbyville         | GENCORP             |    0.989
+ 10006_0_13_14 | 10006_0_0_1      |   0.142 | Shelbyville         | GenCorp             |     0.82
+ 10006_0_13_14 | 10006_0_13_14    |   0.699 | Shelbyville         | Shelbyville         |    0.877
+ 10006_0_15_16 | 10006_0_15_16    |   0.413 | Ind.                | Ind.                |    0.595
+ 10006_0_15_16 | 10006_0_0_1      |   0.183 | Ind.                | GenCorp             |     0.82
+ 10006_0_15_16 | 10006_-1_0_2     |   0.169 | Ind.                | GENCORP             |    0.989
+ 10006_0_15_16 | 10006_0_13_14    |   0.208 | Ind.                | Shelbyville         |    0.877
+``
+
+You can see that mentions GENCORP (in title) and GenCorp (in first sentence) both link to GENCORP,
+the highest is_link expectation for these mentions. 
+
+
+## Additional Material with Ideas to Improve our System
+
+ * Poon and Domingos. [Joint Unsupervised Coreference Resolution with Markov Logic](http://research.microsoft.com/en-us/um/people/hoifung/papers/poon08b.pdf), 2008.
+
+  Explains how to design a factor graph for coreference resolutions that takes into account far more constraints than discussed in this tutorial.
+
+ * Wick, Singh and McCallum. [A Discriminative Hierarchical Model for Fast Coreference at Large Scale](http://sameersingh.org/files/papers/hierar-coref-acl12.pdf), 2012.
+
+  Explains how factor-graph based coreference resolution can be scaled to large amounts of text.
+
+ * Lee, Chang, Peirsman, Chambers, Surdeanu, Jurafsky. [Deterministic Coreference Resolution based on entity-centric, precision-ranked rules](http://nlp.stanford.edu/software/dcoref.shtml), 2013.
+
+  Explains the importance of many types of evidence for coreference resolution.
+
