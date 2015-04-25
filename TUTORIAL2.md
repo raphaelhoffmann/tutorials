@@ -394,12 +394,12 @@ To run this enhanced entity linker, set the pipeline to `all_features` in [appli
 then run `./run.sh` and inspect the outputs as described in the previous section.
 -->
 
-``sql
+```sql
 select i.*, o1.name, o2.name, p.expectation from orglinks_is_link_inference i, orgs o1, orgs o2, orgprotos_is_proto_inference p where i.mention_id = o1.mention_id and i.proto_mention_id = o2.mention_id and i.proto_mention_id = p.proto_mention_id order by o1.document_id, o1.sentence_num, o1.mention_num limit 100;
-``
+```
 
 
-``
+```
   mention_id   | proto_mention_id | is_link |        name         |        name         | is_proto
 ---------------+------------------+---------+---------------------+---------------------+----------
  10006_-1_0_2  | 10006_-1_0_2     |    0.98 | GENCORP             | GENCORP             |    0.989
@@ -412,7 +412,7 @@ select i.*, o1.name, o2.name, p.expectation from orglinks_is_link_inference i, o
  10006_0_15_16 | 10006_0_0_1      |   0.183 | Ind.                | GenCorp             |     0.82
  10006_0_15_16 | 10006_-1_0_2     |   0.169 | Ind.                | GENCORP             |    0.989
  10006_0_15_16 | 10006_0_13_14    |   0.208 | Ind.                | Shelbyville         |    0.877
-``
+```
 
 You can see that mentions GENCORP (in title) and GenCorp (in first sentence) both link to GENCORP,
 the highest is_link expectation for these mentions. 
