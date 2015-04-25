@@ -395,7 +395,7 @@ then run `./run.sh` and inspect the outputs as described in the previous section
 -->
 
 ```sql
-select i.*, o1.name, o2.name, p.expectation from orglinks_is_link_inference i, orgs o1, orgs o2, orgprotos_is_proto_inference p where i.mention_id = o1.mention_id and i.proto_mention_id = o2.mention_id and i.proto_mention_id = p.proto_mention_id order by o1.document_id, o1.sentence_num, o1.mention_num limit 100;
+select i.mention_id, i.proto_mention_id, i.expectation as is_link, o1.name, o2.name, p.expectation as is_proto from orglinks_is_link_inference i, orgs o1, orgs o2, orgprotos_is_proto_inference p where i.mention_id = o1.mention_id and i.proto_mention_id = o2.mention_id and i.proto_mention_id = p.proto_mention_id order by o1.document_id, o1.sentence_num, o1.mention_num limit 100;
 ```
 
 
