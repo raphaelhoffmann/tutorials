@@ -145,22 +145,11 @@ element = document.getElementById('element');
 katex.render("c = \\pm\\sqrt{a^2 + b^2}", element);
 </script>
 
-<style>
-img {
-  -webkit-transform: scale(0.5); /* Saf3.1+, Chrome */
-     -moz-transform: scale(0.5); /* FF3.5+ */
-      -ms-transform: scale(0.5); /* IE9 */
-       -o-transform: scale(0.5); /* Opera 10.5+ */
-          transform: scale(0.5);
-             /* IE6–IE9 */
-             filter: progid:DXImageTransform.Microsoft.Matrix(M11=0.9999619230641713, M12=-0.008726535498373935, M21=0.008726535498373935, M22=0.9999619230641713,SizingMethod='auto expand');
-}
-</style>
 
-<img src="images/eq1.png" style="zoom: 0.5">
+<img src="images/eq1.png" height="40">
 
 
-<img src="images/eq2.png" style="zoom: 0.5">
+<img src="images/eq2.png" height="55">
 
 
 
