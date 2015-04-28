@@ -1,7 +1,5 @@
-<!-- TODO: look at http://www.mmds.org/#ver21 -->
-
-![equation](http://www.sciweavers.org/tex2img.php?eq=1%2Bsin%28mc%5E2%29%0D%0A&bc=White&fc=Black&im=jpg&fs=12&ff=arev&edit=0)
-
+<!-- TODO: look at http://www.mmds.org/#ver21 
+     Great summary of similarity and clustering algorithms -->
 
 # Tutorial: Text Similarity and Clustering 
 
@@ -159,10 +157,10 @@ img {
 }
 </style>
 
-<img src="images/eq1.png" >
+<img src="images/eq1.png" style="zoom: 0.5">
 
 
-<img src="images/eq2.png" >
+<img src="images/eq2.png" style="zoom: 0.5">
 
 
 
