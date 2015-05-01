@@ -98,6 +98,7 @@ extract_document_tokens: {
   style: sql_extractor
   sql: """DROP TABLE IF EXISTS article_tokens;
           CREATE TABLE article_tokens (id int, words text[]);
+          DROP AGGREGATE IF EXISTS array_accum (anyarray);
           CREATE AGGREGATE array_accum (anyarray)
           (
             sfunc = array_cat,
@@ -133,53 +134,49 @@ There are a variety of techniques to estimate the semantic similarity of text do
 We use the term 'document', but note that a document here can also be a paragraph, a
 sentence, or any other range of text. 
 
-Some of the most popular approaches represent each document as a vector of weights. For
-example, there 
+*Vector Space Model* Some of the most popular approaches represent each document as a vector of weights. 
 
-Perhaps the simplest approach is to represent a document by the set of words that it
-contains. 
+<p align="center">
+  <img src="images/eq1.png" height="40">
+</p>
 
-<div id="element"></div>
-<script>
-element = document.getElementById('element');
-katex.render("c = \\pm\\sqrt{a^2 + b^2}", element);
-</script>
+For example, there can be one weight for every word (term) that appears in the corpus,
+and a weight may be 0 if the word does not appear in the document, or 1 if it does. 
 
+We can then compute the similarity of two documents by comparing their vectors. One
+popular approach is cosine distance, which is defined as
 
-<img src="images/eq1.png" height="40">
+<p align="center">
+  <img src="images/eq2.png" height="55">
+</p>
 
+*Sparse Representation* One problem with our example is that most words do not appear in any given
+document, so most entries of any document vector will be zero.
+By switching to a sparse representation in which we only store the nonzero values and their indices
+we can represent vectors more compactly and speed up our similarity computations.
 
-<img src="images/eq2.png" height="55">
-
-
-
-The most popular approach is 
-To estimate the semantic similarity of documents, one often chooses a representation
-of documents and then defines a measure of similarity between documents with this representation.
-
-The most popular approach represents documents as vectors, where each dimension corresponds to
-a term contained in the document.
-
-
-Our goal is to estimate 
-Plan: represent each document as a vector of features.
-compare documents by comparing their vectors.
-Features: bag of words
-experiment with phrases (?)
-
-
-Most entries 0 --> sparse vector representation.
-
-Need encoding of documents as sparse vectors,
-as input to madlib
-
-Need features table containing one row for each unique token:
+For a sparse representation, we create a table containing one row for each combination of document and token:
 
 ```sql
+DROP TABLE IF EXISTS documents_table;
 CREATE TABLE documents_table AS 
   SELECT id, unnest(words) AS term, count(*) AS count FROM article_tokens GROUP BY id, term;
 ```
 
+The content of this table looks as follows:
+
+```
+  id   |   term    | count
+-------+-----------+-------
+  3599 | has       |     2
+ 11637 | estimated |     1
+  2305 | testimony |     1
+ 17571 | dlr       |     2
+ 16636 | arose     |     1
+ ...
+```
+
+We would also like to represent terms by integers, so we create a mapping from terms to integers:
 
 ```sql
 DROP SEQUENCE IF EXISTS dictionary_id_seq;
@@ -190,27 +187,26 @@ CREATE TABLE dictionary_table AS SELECT nextval('dictionary_id_seq') AS id, a AS
   FROM (SELECT DISTINCT unnest(words) AS a FROM article_tokens ORDER BY a) t;
 ```
 
-
-And table `features`:
-
+The table looks as follows:
 ```
- court-ordered
- 64,652
- model
- ABABA
- 480,200
- desposit
- ...
+ id | term
+----+------
+  0 | !
+  1 | &
+  2 | '
+  3 | ''
+  4 | 'll
 ```
 
-Generate sparse vectors:
+We can now use a MADlib function to create our sparse vector respresentations:
 
-
+```sql
+DROP TABLE IF EXISTS svec_output;
 SELECT * FROM madlib.gen_doc_svecs('svec_output', 'dictionary_table', 'id', 'term',
                             'documents_table', 'id', 'term', 'count');
+```
 
-
-geo=# select * from svec_output limit 1;
+You can see the sparse encoding of a document by running ``SELECT * FROM svec_output LIMIT 1;``:
 ```
  doc_id |                              sparse_vector
 --------+---------------------------------------------------------------------------
@@ -218,26 +214,32 @@ geo=# select * from svec_output limit 1;
 (1 row)
 ```
 
-
-
 For more information on how to encode sparse vectors and compute cosine distance with MADlib, see [this documentation page](http://doc.madlib.net/latest/group__grp__svec.html).
 
+To compute the cosine distance between documents, run the following query:
 
 ```sql
-SELECT docnum,
-                180. * ( ACOS( madlib.svec_dmin( 1., madlib.svec_dot(tf_idf, testdoc)
-                    / (madlib.svec_l2norm(tf_idf)*madlib.svec_l2norm(testdoc))))/3.141592654) angular_distance
+SELECT docnum, 180. * ( ACOS( madlib.svec_dmin( 1., madlib.svec_dot(tf_idf, testdoc)
+     / (madlib.svec_l2norm(tf_idf)*madlib.svec_l2norm(testdoc))))/3.141592654) angular_distance
          FROM svec_output,(SELECT tf_idf testdoc FROM svec_output WHERE docnum = 5) foo
          ORDER BY angular_distance ASC LIMIT 10;
 ```
 
 
 
-stopwords?
-Note: on larger copora ... remove stop words for perfornance
+*Stopwords*
+Words like 'the', 'a', 'an', 'is', 'and' are not helpful for computing the semantic similarity
+of text documents, but slow down our computations. A popular approach is to create a dictionary
+of such 'stop words', and remove them from the document representation before our computations.
 
+*Phrases*
+Some research work suggests that adding n-grams (phrases of two or three words) in addition to
+single words can improve the quality of text similarity computations. Note, however, that this
+is computationally more expensive.
 
-TF/IDF
+## TF/IDF Weighting
+
+Our example above does have 
 
 Problem:
 
@@ -250,16 +252,16 @@ tfidf
 
 
 
-
+```sql
+DROP TABLE IF EXISTS weights;
 CREATE TABLE weights AS
-          (SELECT doc_id docnum, madlib.svec_mult(sparse_vector, logidf) tf_idf
-           FROM (SELECT madlib.svec_log(madlib.svec_div(count(sparse_vector)::madlib.svec,madlib.svec_count_nonzero(sparse_vector))) logidf
-                FROM svec_output) foo, svec_output ORDER BY docnum);
+  (SELECT doc_id docnum, madlib.svec_mult(sparse_vector, logidf) tf_idf
+   FROM (SELECT madlib.svec_log(madlib.svec_div(count(sparse_vector)::madlib.svec,madlib.svec_count_nonzero(sparse_vector))) logidf
+         FROM svec_output) foo, svec_output ORDER BY docnum);
 SELECT * FROM weights;
-
+```
 
 Cosine distance 
-
 
 
 
@@ -267,10 +269,10 @@ To see that this works, let's find the documents that are most similar to docume
 
 ```sql
 SELECT docnum,
-                180. * ( ACOS( madlib.svec_dmin( 1., madlib.svec_dot(tf_idf, testdoc)
-                    / (madlib.svec_l2norm(tf_idf)*madlib.svec_l2norm(testdoc))))/3.141592654) angular_distance
-         FROM weights,(SELECT tf_idf testdoc FROM weights WHERE docnum = 5) foo
-         ORDER BY angular_distance ASC LIMIT 10;
+       180. * ( ACOS( madlib.svec_dmin( 1., madlib.svec_dot(tf_idf, testdoc)
+         / (madlib.svec_l2norm(tf_idf)*madlib.svec_l2norm(testdoc))))/3.141592654) angular_distance
+FROM weights,(SELECT tf_idf testdoc FROM weights WHERE docnum = 5) foo
+ORDER BY angular_distance ASC LIMIT 10;
 ```
 
 ```
@@ -340,29 +342,43 @@ SVD
 
 create term-document matrix (sparse)
 
-
+```sql
 DROP TABLE IF EXISTS tdm;
 CREATE TABLE tdm AS
-SELECT docnum as doc, term, value FROM weights, LATERAL unnest(
+SELECT docnum as doc, term::int, value FROM weights, LATERAL unnest(
    madlib.svec_nonbase_positions(tf_idf, 0),
    madlib.svec_nonbase_values(tf_idf, 0)) AS t(term, value);
+```
 
+check the dimensions
+```sql
+SELECT max(term) FROM tdm;
+SELECT max(doc) FROM tdm;
+```
 
+Now run the svd
+
+```sql
 DROP TABLE IF EXISTS svd_u;
 DROP TABLE IF EXISTS svd_v; 
 DROP TABLE IF EXISTS svd_s; 
-
 SELECT madlib.svd_sparse('tdm', 'svd', 'term', 'doc', 'value', 
     77993, 19043, 3, 12);
 
--- k=3, nIterations = 12
-select madlib.svd_sparse('inputable', 'svd', 'row_id', 'col_id',
-'value', 10000, 10000, 3, 12);
-row_dim, col_dim
+SELECT madlib.svd_sparse('tdm', 'svd', 'term', 'doc', 'value',
+    13791, 21527, 100, 5);
 
+```
 
-
-
+* Sparse input table
+* Output table prefix
+* Term column in input table
+* Document column in input table
+* Value column in input table
+* Number of terms
+* Number of documents
+* Number of singular vectors to compute
+* Number of iterations to run
 
 
 
