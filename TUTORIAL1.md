@@ -377,7 +377,7 @@ AND expectation > .9
 ORDER BY random()
 LIMIT 100;
 ```
-Although there's some noise in the output, many locations are resolved correctly, for example:
+Although there's noise in the output, many locations are resolved correctly, for example:
 
 ```
 London      |      84 | The SES is discussing the idea with the London and New York authorities .
@@ -386,6 +386,50 @@ Tianjin     |   11736 | China has signed a 130 mln dlr loan agreement with the W
 ```
 
 You can verify the target locations by opening Wikidata's pages for [Q84](http://www.wikidata.org/wiki/Q84), [Q8686](http://www.wikidata.org/wiki/Q8686), and [Q11736](http://www.wikidata.org/wiki/Q11736) and Reuters' full articles.
+
+We are now going to try to remove noise. Many of the incorrect matches are due to very small, little known locations
+matching to words in the text, but the words are ambiguous and have a different meaning in the article.
+To reduce such co-incidental matches, we will assign a very small negative weight to every match. This means that
+in the absence of additional evidence, the system will not generate a link. However, when there is additional
+evidence, for example multiple nearby locations matching in an article, the evidence will outweigh this
+negative prior.
+
+```
+negative_bias {
+  input_query: """
+    SELECT l.id as "locations.id", l.is_correct as "locations.is_correct"
+    FROM locations l
+     """
+  function: "IsTrue(locations.is_correct)"
+  weight: -1
+}
+```
+
+You can see that the precision goes up significantly when adding this factor.
+
+Another source of errors are the same words appearing in an article multiple times,
+and being mapped to different locations. Since it is unlikely that the author meant
+to refer to different locations with the same name in the same article, we can
+again assign a small penalty for this case:
+
+```
+same_to_same {
+  input_query: """
+    SELECT l1.id as "linking1.id", l1.is_correct as "linking1.is_correct",
+           l2.id as "linking2.id", l2.is_correct as "linking2.is_correct"
+    FROM locations l1, locations l2
+    WHERE
+    l1.document_id = l2.document_id
+    AND l1.mention_str = l2.mention_str
+    AND l1.mention_num != l2.mention_num
+    AND l1.loc_id != l2.loc_id;
+    """
+  function: "And(linking1.is_correct, linking2.is_correct)"
+  weight: -3
+}
+```
+
+Feel free to analyze the results and encode additional intuitions.
 
 
 ## Weight learning
@@ -435,6 +479,9 @@ context_features {
   weight: "?(locations.feature)"
 }
 ```
+
+We leave it as an excercise to expand the set of features and add additional rules
+for distant supervision.
 
 To run this enhanced entity linker, set the pipeline to `all_features` in [application.conf](application.conf),
 then run `./run.sh` and inspect the outputs as described in the previous section.
